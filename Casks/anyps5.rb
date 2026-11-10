@@ -15,18 +15,21 @@ cask "anyps5" do
 
   auto_updates true
   depends_on arch: :arm64
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "AnyPS5.app"
 
   # The app is not notarized: clear the download flags the way the release's install.sh does,
   # so macOS opens it without the "cannot be opened" warning.
-  postflight do
-    %w[com.apple.quarantine com.apple.provenance].each do |attribute|
-      system_command "/usr/bin/xattr",
-                     args:         ["-dr", attribute, "#{appdir}/AnyPS5.app"],
-                     print_stderr: false
-    end
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args:         ["-dr", "com.apple.quarantine", "{{appdir}}/AnyPS5.app"],
+        must_succeed: false,
+        print_stderr: false
+    run "/usr/bin/xattr",
+        args:         ["-dr", "com.apple.provenance", "{{appdir}}/AnyPS5.app"],
+        must_succeed: false,
+        print_stderr: false
   end
 
   zap trash: [

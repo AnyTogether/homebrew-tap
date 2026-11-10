@@ -16,4 +16,10 @@ The launcher updates itself. To remove it together with its settings, profiles, 
 brew uninstall --zap --cask anyps5
 ```
 
+Newer Homebrew versions load a cask from a tap you have not trusted only when you install, reinstall or upgrade it by its full name, as above. For any other command, such as the uninstall, trust the tap once:
+
+```sh
+brew trust anytogether/tap
+```
+
 The cask follows the latest stable release. A scheduled workflow (`.github/workflows/update-cask.yml`) checks every 6 hours and moves the version and checksum when a new one is out.

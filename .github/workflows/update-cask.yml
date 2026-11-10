@@ -1,0 +1,75 @@
+name: Update cask
+
+# Follows the latest stable AnyPS5 release (GitHub's "latest", never a nightly pre-release)
+# and moves Casks/anyps5.rb to it: version and sha256 of AnyPS5-macOS.zip.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-cask
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE: AnyTogether/AnyPS5-ARM
+          ASSET: AnyPS5-macOS.zip
+          CASK: Casks/anyps5.rb
+        run: |
+          set -euo pipefail
+          release="$(gh api "repos/$SOURCE/releases/latest")"
+          tag="$(jq -r .tag_name <<<"$release")"
+          if [ "$(jq -r .prerelease <<<"$release")" != "false" ] || [ "$(jq -r .draft <<<"$release")" != "false" ]; then
+            echo "::notice::$tag is a pre-release or a draft, nothing to do"
+            exit 0
+          fi
+          if ! [[ "$tag" =~ ^v([0-9]+(\.[0-9]+)+)-arm$ ]]; then
+            echo "::notice::$tag is not a vX.Y.Z-arm release tag, nothing to do"
+            exit 0
+          fi
+          latest="${BASH_REMATCH[1]}"
+          current="$(sed -nE 's/^  version "([^"]+)"$/\1/p' "$CASK")"
+          echo "cask: $current, latest release: $latest ($tag)"
+          if [ "$latest" = "$current" ]; then
+            echo "::notice::The cask is already at $current"
+            exit 0
+          fi
+          if [ "$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)" != "$latest" ]; then
+            echo "::notice::$latest is older than the cask's $current, nothing to do"
+            exit 0
+          fi
+          if [ "$(jq -r --arg a "$ASSET" '[.assets[] | select(.name == $a)] | length' <<<"$release")" != "1" ]; then
+            echo "::notice::$tag has no $ASSET yet, trying again on the next run"
+            exit 0
+          fi
+
+          scratch="$(mktemp -d)"
+          gh release download "$tag" -R "$SOURCE" -p "$ASSET" -D "$scratch"
+          sha="$(sha256sum "$scratch/$ASSET" | cut -d' ' -f1)"
+          # The release's SHA256SUMS lists the same file when it has one.
+          if gh release download "$tag" -R "$SOURCE" -p SHA256SUMS -D "$scratch" 2>/dev/null; then
+            listed="$(awk -v a="$ASSET" '$2 == a || $2 == "*" a { print $1 }' "$scratch/SHA256SUMS")"
+            if [ -n "$listed" ] && [ "$listed" != "$sha" ]; then
+              echo "::error::$ASSET does not match the release's SHA256SUMS"
+              exit 1
+            fi
+          fi
+
+          sed -i -E "s/^  version \"[^\"]+\"$/  version \"$latest\"/; s/^  sha256 \"[0-9a-f]+\"$/  sha256 \"$sha\"/" "$CASK"
+          git diff --stat
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$CASK"
+          git commit -m "anyps5 $latest"
+          git push

@@ -1,6 +1,6 @@
 cask "anyps5" do
-  version "0.2.39"
-  sha256 "df6287a2cb0b10913a1988d46e16487f34618c1c3da100834350d8b2a935f72b"
+  version "0.2.40"
+  sha256 "f29f34da1709dfc74686492702c636252bc42583926897e5be21221e9a171319"
 
   url "https://github.com/AnyTogether/AnyPS5-ARM/releases/download/v#{version}-arm/AnyPS5-macOS.zip"
   name "AnyPS5"
